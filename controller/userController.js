@@ -144,64 +144,134 @@ const getDownline = async (req, res) => {
     }
 };
 
+// const getbyFunctionName = async (req, res) => {
+//     const functionName = req.params.functionName;
+//     const page = parseInt(req.query.page) || 1;
+//     const limit = parseInt(req.query.limit) || 10;
+//     const offset = (page - 1) * limit;
+
+//     // Get the date as a date string (in YYYY/MM/DD format)
+//     const date = req.query.date; // e.g., "2025/03/11"
+
+//     if (!date) {
+//         return res.status(400).json({ message: 'date parameter is required in YYYY/MM/DD format' });
+//     }
+
+//     try {
+//         // Validate the functionName to ensure it's a known type
+//         const validFunctionNames = ['register', 'upgrade', 'ot5 7 her'];
+//         if (!validFunctionNames.includes(functionName)) {
+//             return res.status(400).json({ message: 'Invalid functionName' });
+//         }
+
+//         // Parse the date date string into a Date object
+//         const [year, month, day] = date.split('/').map((part) => parseInt(part, 10));
+        
+//         if (isNaN(year) || isNaN(month) || isNaN(day)) {
+//             return res.status(400).json({ message: 'Invalid date format for date, expected YYYY/MM/DD' });
+//         }
+
+//         // Set the date to the specified day and set the time to midnight
+//         const pastDate = new Date(year, month - 1, day);
+//         pastDate.setHours(0, 0, 0, 0); // Set to midnight of the given date
+//         const pastDateTimestamp = Math.floor(pastDate.getTime() / 1000); // Unix timestamp for past date
+
+//         // Get the current date's Unix timestamp (midnight of today)
+//         const currentDate = new Date();
+//         currentDate.setHours(0, 0, 0, 0); // Set to midnight of the current day
+//         const currentDateTimestamp = Math.floor(currentDate.getTime() / 1000); // Unix timestamp in seconds
+
+//         // Query the database to get the transactions for the given functionName within the date range
+//         const [transactions] = await db.query(
+//             'SELECT * FROM tbl_ether_force_all_transaction WHERE functionName = ? AND timeStamp >= ? AND timeStamp <= ? LIMIT ? OFFSET ?',
+//             [functionName, pastDateTimestamp, currentDateTimestamp, limit, offset]
+//         );
+
+//         // Get total count of transactions for this functionName and date range (for pagination metadata)
+//         const [totalCount] = await db.query(
+//             'SELECT COUNT(*) AS count FROM tbl_ether_force_all_internal_transaction WHERE functionName = ? AND timeStamp >= ? AND timeStamp <= ?',
+//             [functionName, pastDateTimestamp, currentDateTimestamp]
+//         );
+
+//         // Calculate the total number of pages
+//         const totalPages = Math.ceil(totalCount[0].count / limit);
+
+//         if (transactions.length === 0) {
+//             return res.status(404).json({ message: `No transactions found for functionName: ${functionName} from ${date}` });
+//         }
+
+//         // Return the response with the transactions and pagination info
+//         res.status(200).json({
+//             status: 200,
+//             data: transactions,
+//             pagination: {
+//                 currentPage: page,
+//                 totalPages: totalPages,
+//                 totalTransactions: totalCount[0].count,
+//                 limit: limit,
+//             },
+//         });
+//     } catch (error) {
+//         console.error('Error fetching transactions by functionName:', error);
+//         res.status(500).json({ message: 'Server error' });
+//     }
+// };
+
 const getbyFunctionName = async (req, res) => {
     const functionName = req.params.functionName;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
 
-    // Get the date as a date string (in YYYY/MM/DD format)
-    const date = req.query.date; // e.g., "2025/03/11"
+    const date = req.query.date; // e.g., "2025/04/08"
 
     if (!date) {
         return res.status(400).json({ message: 'date parameter is required in YYYY/MM/DD format' });
     }
 
     try {
-        // Validate the functionName to ensure it's a known type
         const validFunctionNames = ['register', 'upgrade', 'ot5 7 her'];
         if (!validFunctionNames.includes(functionName)) {
             return res.status(400).json({ message: 'Invalid functionName' });
         }
 
-        // Parse the date date string into a Date object
-        const [year, month, day] = date.split('/').map((part) => parseInt(part, 10));
-        
+        // Parse and validate date
+        const [year, month, day] = date.split('/').map(part => parseInt(part, 10));
         if (isNaN(year) || isNaN(month) || isNaN(day)) {
             return res.status(400).json({ message: 'Invalid date format for date, expected YYYY/MM/DD' });
         }
 
-        // Set the date to the specified day and set the time to midnight
-        const pastDate = new Date(year, month - 1, day);
-        pastDate.setHours(0, 0, 0, 0); // Set to midnight of the given date
-        const pastDateTimestamp = Math.floor(pastDate.getTime() / 1000); // Unix timestamp for past date
+        // Start of day (00:00:00)
+        const startDate = new Date(year, month - 1, day);
+        startDate.setHours(0, 0, 0, 0);
+        const startEpoch = Math.floor(startDate.getTime() / 1000);
 
-        // Get the current date's Unix timestamp (midnight of today)
-        const currentDate = new Date();
-        currentDate.setHours(0, 0, 0, 0); // Set to midnight of the current day
-        const currentDateTimestamp = Math.floor(currentDate.getTime() / 1000); // Unix timestamp in seconds
+        // End of day (23:59:59)
+        const endDate = new Date(year, month - 1, day);
+        endDate.setHours(23, 59, 59, 999);
+        const endEpoch = Math.floor(endDate.getTime() / 1000);
 
-        // Query the database to get the transactions for the given functionName within the date range
+        // Query actual transactions
         const [transactions] = await db.query(
-            'SELECT * FROM tbl_ether_force_all_transaction WHERE functionName = ? AND timeStamp >= ? AND timeStamp <= ? LIMIT ? OFFSET ?',
-            [functionName, pastDateTimestamp, currentDateTimestamp, limit, offset]
+            'SELECT * FROM tbl_ether_force_all_transaction WHERE functionName = ? AND timeStamp BETWEEN ? AND ? LIMIT ? OFFSET ?',
+            [functionName, startEpoch, endEpoch, limit, offset]
         );
 
-        // Get total count of transactions for this functionName and date range (for pagination metadata)
+        // Count total
         const [totalCount] = await db.query(
-            'SELECT COUNT(*) AS count FROM tbl_ether_force_all_internal_transaction WHERE functionName = ? AND timeStamp >= ? AND timeStamp <= ?',
-            [functionName, pastDateTimestamp, currentDateTimestamp]
+            'SELECT COUNT(*) AS count FROM tbl_ether_force_all_transaction WHERE functionName = ? AND timeStamp BETWEEN ? AND ?',
+            [functionName, startEpoch, endEpoch]
         );
 
-        // Calculate the total number of pages
         const totalPages = Math.ceil(totalCount[0].count / limit);
 
         if (transactions.length === 0) {
-            return res.status(404).json({ message: `No transactions found for functionName: ${functionName} from ${date}` });
+            return res.status(404).json({
+                message: `No transactions found for functionName: ${functionName} from ${date}`,
+            });
         }
 
-        // Return the response with the transactions and pagination info
-        res.status(200).json({
+        return res.status(200).json({
             status: 200,
             data: transactions,
             pagination: {
@@ -211,11 +281,14 @@ const getbyFunctionName = async (req, res) => {
                 limit: limit,
             },
         });
+
     } catch (error) {
         console.error('Error fetching transactions by functionName:', error);
-        res.status(500).json({ message: 'Server error' });
+        return res.status(500).json({ message: 'Server error' });
     }
 };
+
+
 
 const getUsersByLevel = async (req, res) => {
     try {
@@ -347,52 +420,43 @@ const getAllFunctions = async (req, res) => {
 
 const getAllUsers = async (req, res) => {
     try {
-        // Retrieve the page, limit, and id from the query parameters
-        const page = parseInt(req.query.page) || 1;  // Default to page 1 if not provided
-        const limit = parseInt(req.query.limit) || 10;  // Default to 10 records per page if not provided
-        const offset = (page - 1) * limit;  // Calculate the offset for pagination
-        const userId = req.query.id;  // Get the user ID if provided
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+        const userId = req.query.id;
 
-        // Construct the query based on the presence of the userId
-        let usersQuery = 'SELECT * FROM users';
+        let usersQuery = 'SELECT * FROM users LIMIT ? OFFSET ?';
         let queryParams = [limit, offset];
 
-        // If an id is provided, add a condition to the query to filter by that id
-        if (userId) {
-            usersQuery = 'SELECT * FROM users WHERE id = ? LIMIT ? OFFSET ?';
-            queryParams = [userId, limit, offset];
-        }
-
-        // Query the database to get users with pagination or filter by id
-        const [users] = await db.query(usersQuery, queryParams);
-
-        // Get the total count of users (with or without the filter)
         let countQuery = 'SELECT COUNT(*) as count FROM users';
         let countParams = [];
 
-        if (userId) {
+        // If valid ID provided, modify query
+        if (userId && userId.trim() !== "") {
+            usersQuery = 'SELECT * FROM users WHERE id = ? LIMIT ? OFFSET ?';
+            queryParams = [userId, limit, offset];
+
             countQuery = 'SELECT COUNT(*) as count FROM users WHERE id = ?';
             countParams = [userId];
         }
 
+        const [users] = await db.query(usersQuery, queryParams);
         const [totalCount] = await db.query(countQuery, countParams);
 
-        const totalPages = Math.ceil(totalCount[0].count / limit);  // Calculate total pages
+        const totalPages = Math.ceil(totalCount[0].count / limit);
 
-        // If no users are found
         if (users.length === 0) {
             return res.status(404).json({ message: 'No users found' });
         }
 
-        // Return the response with the users and pagination info
         res.status(200).json({
             status: 200,
             data: users,
             pagination: {
                 currentPage: page,
-                totalPages: totalPages,
+                totalPages,
                 totalUsers: totalCount[0].count,
-                limit: limit
+                limit
             }
         });
     } catch (error) {
@@ -400,6 +464,62 @@ const getAllUsers = async (req, res) => {
         res.status(500).json({ message: 'Server error' });
     }
 };
+
+// const getAllUsers = async (req, res) => {
+//     try {
+//         // Retrieve the page, limit, and id from the query parameters
+//         const page = parseInt(req.query.page) || 1;  // Default to page 1 if not provided
+//         const limit = parseInt(req.query.limit) || 10;  // Default to 10 records per page if not provided
+//         const offset = (page - 1) * limit;  // Calculate the offset for pagination
+//         const userId = req.query.id;  // Get the user ID if provided
+
+//         // Construct the query based on the presence of the userId
+//         let usersQuery = 'SELECT * FROM users';
+//         let queryParams = [limit, offset];
+
+//         // If an id is provided, add a condition to the query to filter by that id
+//         if (userId) {
+//             usersQuery = 'SELECT * FROM users WHERE id = ? LIMIT ? OFFSET ?';
+//             queryParams = [userId, limit, offset];
+//         }
+
+//         // Query the database to get users with pagination or filter by id
+//         const [users] = await db.query(usersQuery, queryParams);
+
+//         // Get the total count of users (with or without the filter)
+//         let countQuery = 'SELECT COUNT(*) as count FROM users';
+//         let countParams = [];
+
+//         if (userId) {
+//             countQuery = 'SELECT COUNT(*) as count FROM users WHERE id = ?';
+//             countParams = [userId];
+//         }
+
+//         const [totalCount] = await db.query(countQuery, countParams);
+
+//         const totalPages = Math.ceil(totalCount[0].count / limit);  // Calculate total pages
+
+//         // If no users are found
+//         if (users.length === 0) {
+//             return res.status(404).json({ message: 'No users found' });
+//         }
+
+//         // Return the response with the users and pagination info
+//         res.status(200).json({
+//             status: 200,
+//             data: users,
+//             pagination: {
+//                 currentPage: page,
+//                 totalPages: totalPages,
+//                 totalUsers: totalCount[0].count,
+//                 limit: limit
+//             }
+//         });
+//     } catch (error) {
+//         console.error('Error fetching users with pagination:', error);
+//         res.status(500).json({ message: 'Server error' });
+//     }
+// };
 
 const getUsersDetails = async (req, res) => {
     try {
@@ -600,27 +720,39 @@ const downlinebusiness = async (req, res) => {
 };
 
 const getCurrentDailyStats = async (req, res) => {
-    const { page = 1, limit = 10 } = req.query;  // Pagination params (default: page=1, limit=10)
+    const { page = 1, limit = 10, from, to } = req.query;
 
     try {
         const offset = (page - 1) * limit;
+        let query = `SELECT * FROM daily_stats`;
+        let queryParams = [];
 
-        // Query to get the daily stats with pagination
-        const [dailyStats] = await db.query(
-            `SELECT * FROM daily_stats ORDER BY date DESC LIMIT ? OFFSET ?`,
-            [parseInt(limit), offset]
-        );
+        if (from && to) {
+            query += ` WHERE date BETWEEN ? AND ?`;
+            queryParams.push(`${from} 00:00:00`, `${to} 23:59:59`);
+        }
+
+        query += ` ORDER BY date DESC LIMIT ? OFFSET ?`;
+        queryParams.push(parseInt(limit), offset);
+
+        const [dailyStats] = await db.query(query, queryParams);
 
         if (dailyStats.length > 0) {
-            // Convert the date field from UTC to local time (example: Asia/Kolkata timezone)
             const statsWithLocalTime = dailyStats.map(stat => ({
                 ...stat,
-                date: convertUTCToLocal(stat.date, 'Asia/Kolkata'),  // Change 'Asia/Kolkata' to your desired timezone
-                created_at: convertUTCToLocal(stat.created_at, 'Asia/Kolkata')  // Same for created_at
+                date: convertUTCToLocal(stat.date, 'Asia/Kolkata'),
+                created_at: convertUTCToLocal(stat.created_at, 'Asia/Kolkata')
             }));
 
-            // Get total records to calculate pagination
-            const [totalRecordsResult] = await db.query(`SELECT COUNT(*) AS total FROM daily_stats`);
+            let countQuery = `SELECT COUNT(*) AS total FROM daily_stats`;
+            let countParams = [];
+
+            if (from && to) {
+                countQuery += ` WHERE date BETWEEN ? AND ?`;
+                countParams.push(`${from} 00:00:00`, `${to} 23:59:59`);
+            }
+
+            const [totalRecordsResult] = await db.query(countQuery, countParams);
             const totalRecords = totalRecordsResult[0].total;
 
             const totalPages = Math.ceil(totalRecords / limit);
@@ -630,9 +762,9 @@ const getCurrentDailyStats = async (req, res) => {
                 message: 'Daily stats fetched successfully',
                 data: statsWithLocalTime,
                 pagination: {
-                    currentPage: page,
-                    totalPages: totalPages,
-                    totalRecords: totalRecords
+                    currentPage: parseInt(page),
+                    totalPages,
+                    totalRecords
                 }
             });
         } else {
@@ -651,6 +783,107 @@ const getCurrentDailyStats = async (req, res) => {
 };
 
 
+const getCurrentMonthlyStats = async (req, res) => {
+    const { page = 1, limit = 10, year, month } = req.query;
+
+    try {
+        const offset = (page - 1) * limit;
+        let query = `SELECT * FROM daily_stats`;
+        let queryParams = [];
+
+        if (year && month) {
+            // We need to ensure that both year and month are provided
+            const startOfMonth = `${year}-${month.padStart(2, '0')}-01 00:00:00`;
+            const endOfMonth = `${year}-${month.padStart(2, '0')}-31 23:59:59`;
+            query += ` WHERE date BETWEEN ? AND ?`;
+            queryParams.push(startOfMonth, endOfMonth);
+        }
+
+        query += ` ORDER BY date DESC LIMIT ? OFFSET ?`;
+        queryParams.push(parseInt(limit), offset);
+
+        const [dailyStats] = await db.query(query, queryParams);
+
+        if (dailyStats.length > 0) {
+            const statsWithLocalTime = dailyStats.map(stat => ({
+                ...stat,
+                date: convertUTCToLocal(stat.date, 'Asia/Kolkata'),
+                created_at: convertUTCToLocal(stat.created_at, 'Asia/Kolkata')
+            }));
+
+            let countQuery = `SELECT COUNT(*) AS total FROM daily_stats`;
+            let countParams = [];
+
+            if (year && month) {
+                countQuery += ` WHERE date BETWEEN ? AND ?`;
+                countParams.push(startOfMonth, endOfMonth);
+            }
+
+            const [totalRecordsResult] = await db.query(countQuery, countParams);
+            const totalRecords = totalRecordsResult[0].total;
+
+            const totalPages = Math.ceil(totalRecords / limit);
+
+            return res.status(200).json({
+                status: 200,
+                message: 'Monthly stats fetched successfully',
+                data: statsWithLocalTime,
+                pagination: {
+                    currentPage: parseInt(page),
+                    totalPages,
+                    totalRecords
+                }
+            });
+        } else {
+            return res.status(404).json({
+                status: 404,
+                message: 'No monthly stats found'
+            });
+        }
+    } catch (error) {
+        console.error('Error fetching monthly stats:', error.message || error);
+        return res.status(500).json({
+            message: 'Server error',
+            error: error.message || error
+        });
+    }
+};
+
+
+function formatToYMD(dateStr) {
+    const dateObj = new Date(dateStr);
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+function parseDateToEpoch(dateStr, isEndOfDay = false) {
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return NaN;
+
+    const year = parts[0];
+    const month = parts[1].padStart(2, '0');
+    const day = parts[2].padStart(2, '0');
+
+    const formatted = `${year}-${month}-${day}T${isEndOfDay ? '23:59:59' : '00:00:00'}Z`;
+    return Math.floor(new Date(formatted).getTime() / 1000);
+}
+
+
+function convertEpochToLocal(epochSeconds, timeZone = 'Asia/Kolkata') {
+    return new Date(epochSeconds * 1000).toLocaleString('en-IN', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    }).replace(',', '');
+}
+
+
 module.exports = {
     registerUser,
     loginUser,
@@ -663,5 +896,6 @@ module.exports = {
     getDailyStats,
     getUsersDetails,
     downlinebusiness,
-    getCurrentDailyStats
+    getCurrentDailyStats,
+    getCurrentMonthlyStats
 };
