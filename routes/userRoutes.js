@@ -17,6 +17,7 @@ router.get('/dailystats', authenticateToken, userController.getDailyStats);
 router.get('/getUsersDetails/:userId', authenticateToken, userController.getUsersDetails);
 router.get('/downlinebusiness/:parentId', authenticateToken, userController.downlinebusiness);
 router.get('/currentdailystats', authenticateToken, userController.getCurrentDailyStats);
+router.get('/getCurrentMonthlyStats', authenticateToken, userController.getCurrentMonthlyStats);
 
 module.exports = router;
 
